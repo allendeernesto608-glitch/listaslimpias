@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NovaTV — Plataforma de Streaming</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <style>
+    body { background-color: #0b0d14; color: #f3f4f6; }
+    .tv-focus:focus { outline: 3px solid #3b82f6; transform: scale(1.03); }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col font-sans">
+
+  <!-- Barra Superior -->
+  <header class="bg-[#111420]/95 border-b border-gray-800 sticky top-0 z-40 px-4 md:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-6">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-600/30">N</div>
+        <span class="text-xl font-extrabold tracking-wide text-white">NOVA<span class="text-blue-500">TV</span></span>
+      </div>
+      <nav class="flex gap-2 text-sm font-medium">
+        <button onclick="setFilter('all')" class="filter-btn px-3 py-1.5 rounded-lg bg-blue-600 text-white" data-filter="all">Inicio</button>
+        <button onclick="setFilter('live')" class="filter-btn px-3 py-1.5 rounded-lg hover:bg-gray-800 text-gray-300" data-filter="live">TV en Vivo</button>
+        <button onclick="setFilter('vod')" class="filter-btn px-3 py-1.5 rounded-lg hover:bg-gray-800 text-gray-300" data-filter="vod">Películas & Series</button>
+        <button onclick="setFilter('fav')" class="filter-btn px-3 py-1.5 rounded-lg hover:bg-gray-800 text-gray-300" data-filter="fav">Favoritos</button>
+      </nav>
+    </div>
+
+    <div class="relative w-full md:w-64">
+      <input id="searchInput" type="text" placeholder="Buscar canal o película..."
+        class="w-full bg-[#1a1f30] border border-gray-700 rounded-lg px-4 py-1.5 text-sm text-white placeholder-gray-400 focus:outline-none focus:border-blue-500" />
+    </div>
+  </header>
+
+  <!-- Contenido Principal -->
+  <main class="flex-1 px-4 md:px-8 py-6 max-w-7xl mx-auto w-full space-y-8">
+
+    <!-- Reproductor / Hero -->
+    <section id="playerSection" class="bg-[#111420] border border-gray-800 rounded-2xl overflow-hidden shadow-2xl">
+      <div class="grid grid-cols-1 lg:grid-cols-3">
+        <!-- Video -->
+        <div class="lg:col-span-2 bg-black relative aspect-video flex items-center justify-center">
+          <video id="videoPlayer" class="w-full h-full" controls playsinline autoplay muted></video>
+        </div>
+
+        <!-- Info del canal / película actual -->
+        <div class="p-6 flex flex-col justify-between bg-gradient-to-b from-[#161a29] to-[#111420]">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <span id="currentBadge" class="text-xs font-semibold uppercase tracking-wider px-2.5 py-1 rounded bg-red-600/20 text-red-400 border border-red-500/30">En Vivo</span>
+              <button id="favToggleBtn" onclick="toggleCurrentFav()" class="text-sm px-3 py-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 transition">
+                ☆ Guardar
+              </button>
+            </div>
+            <h1 id="currentTitle" class="text-2xl font-bold text-white mb-2">Big Buck Bunny (Demo HLS)</h1>
+            <p id="currentDesc" class="text-sm text-gray-400 leading-relaxed">
+              Stream de prueba adaptativo en formato HLS (.m3u8). Ideal para validar la reproducción continua en distintos dispositivos.
+            </p>
+          </div>
+
+          <div class="mt-6 pt-4 border-t border-gray-800 text-xs text-gray-400 space-y-1">
+            <p><strong class="text-gray-200">Categoría:</strong> <span id="currentCategory">Animación / Demo</span></p>
+            <p><strong class="text-gray-200">Formato:</strong> <span id="currentFormat">HLS Adaptativo</span></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Catálogo -->
+    <section>
+      <div class="flex items-center justify-between mb-4">
+        <h2 id="sectionHeading" class="text-xl font-bold text-white">Todo el contenido</h2>
+        <span id="itemsCount" class="text-xs text-gray-400"></span>
+      </div>
+      <div id="catalogGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4"></div>
+    </section>
+
+  </main>
+
+  <script>
+    // Catálogo de ejemplo (Reemplaza estos enlaces con tus fuentes autorizadas M3U8 o MP4)
+    const catalog = [
+      {
+        id: 1,
+        title: "Nova Cine HD",
+        type: "live",
+        category: "Cine & Demos",
+        format: "HLS (.m3u8)",
+        desc: "Canal de transmisión continua con soporte adaptativo de calidad.",
+        thumb: "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=600&q=80",
+        url: "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"
+      },
+      {
+        id: 2,
+        title: "Tech & Ciencia TV",
+        type: "live",
+        category: "Documental",
+        format: "HLS (.m3u8)",
+        desc: "Señal de pruebas de Apple para streaming en múltiples resoluciones.",
+        thumb: "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=600&q=80",
+        url: "https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8"
+      },
+      {
+        id: 3,
+        title: "Sintel (Cortometraje)",
+        type: "vod",
+        category: "Fantasía / Animación",
+        format: "MP4 HD",
+        desc: "Cortometraje abierto de Blender Foundation sobre una joven en busca de su dragón.",
+        thumb: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=600&q=80",
+        url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4"
+      },
+      {
+        id: 4,
+        title: "Tears of Steel",
+        type: "vod",
+        category: "Ciencia Ficción",
+        format: "MP4 HD",
+        desc: "Producción abierta de ciencia ficción con efectos visuales avanzados.",
+        thumb: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=600&q=80",
+        url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4"
+      },
+      {
+        id: 5,
+        title: "Elephants Dream",
+        type: "vod",
+        category: "Arte & Animación",
+        format: "MP4 HD",
+        desc: "Primer cortometraje animado abierto creado por la comunidad Blender.",
+        thumb: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=600&q=80",
+        url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"
+      }
+    ];
+
+    let activeFilter = 'all';
+    let searchQuery = '';
+    let currentItem = catalog[0];
+    let favorites = JSON.parse(localStorage.getItem('novatv_favs') || '[]');
+    let hlsInstance = null;
+
+    const video = document.getElementById('videoPlayer');
+
+    function playItem(item) {
+      currentItem = item;
+      document.getElementById('currentTitle').textContent = item.title;
+      document.getElementById('currentDesc').textContent = item.desc;
+      document.getElementById('currentCategory').textContent = item.category;
+      document.getElementById('currentFormat').textContent = item.format;
+
+      const badge = document.getElementById('currentBadge');
+      if (item.type === 'live') {
+        badge.textContent = 'En Vivo';
+        badge.className = 'text-xs font-semibold uppercase tracking-wider px-2.5 py-1 rounded bg-red-600/20 text-red-400 border border-red-500/30';
+      } else {
+        badge.textContent = 'On Demand';
+        badge.className = 'text-xs font-semibold uppercase tracking-wider px-2.5 py-1 rounded bg-blue-600/20 text-blue-400 border border-blue-500/30';
+      }
+
+      updateFavButton();
+
+      if (hlsInstance) {
+        hlsInstance.destroy();
+        hlsInstance = null;
+      }
+
+      if (item.url.includes('.m3u8')) {
+        if (Hls.isSupported()) {
+          hlsInstance = new Hls();
+          hlsInstance.loadSource(item.url);
+          hlsInstance.attachMedia(video);
+          hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          video.src = item.url;
+          video.play().catch(() => {});
+        }
+      } else {
+        video.src = item.url;
+        video.play().catch(() => {});
+      }
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function toggleCurrentFav() {
+      if (favorites.includes(currentItem.id)) {
+        favorites = favorites.filter(id => id !== currentItem.id);
+      } else {
+        favorites.push(currentItem.id);
+      }
+      localStorage.setItem('novatv_favs', JSON.stringify(favorites));
+      updateFavButton();
+      if (activeFilter === 'fav') renderCatalog();
+    }
+
+    function updateFavButton() {
+      const btn = document.getElementById('favToggleBtn');
+      const isFav = favorites.includes(currentItem.id);
+      btn.textContent = isFav ? '★ En Favoritos' : '☆ Guardar';
+      btn.className = isFav
+        ? 'text-sm px-3 py-1 rounded-lg bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 transition'
+        : 'text-sm px-3 py-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 transition';
+    }
+
+    function setFilter(filter) {
+      activeFilter = filter;
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        if (btn.dataset.filter === filter) {
+          btn.className = 'filter-btn px-3 py-1.5 rounded-lg bg-blue-600 text-white';
+        } else {
+          btn.className = 'filter-btn px-3 py-1.5 rounded-lg hover:bg-gray-800 text-gray-300';
+        }
+      });
+
+      const titles = {
+        all: 'Todo el contenido',
+        live: 'Canales de TV en Vivo',
+        vod: 'Películas y Series',
+        fav: 'Mis Favoritos'
+      };
+      document.getElementById('sectionHeading').textContent = titles[filter];
+      renderCatalog();
+    }
+
+    function renderCatalog() {
+      const grid = document.getElementById('catalogGrid');
+      const filtered = catalog.filter(item => {
+        const matchesFilter =
+          activeFilter === 'all' ||
+          (activeFilter === 'fav' ? favorites.includes(item.id) : item.type === activeFilter);
+        const matchesSearch =
+          item.title.toLowerCase().includes(searchQuery) ||
+          item.category.toLowerCase().includes(searchQuery);
+        return matchesFilter && matchesSearch;
+      });
+
+      document.getElementById('itemsCount').textContent = `${filtered.length} resultados`;
+      grid.innerHTML = '';
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `<p class="col-span-full text-gray-500 py-8 text-center">No se encontraron elementos.</p>`;
+        return;
+      }
+
+      filtered.forEach(item => {
+        const card = document.createElement('button');
+        card.className = 'tv-focus group text-left bg-[#151928] border border-gray-800 rounded-xl overflow-hidden hover:border-blue-500 transition flex flex-col';
+        card.onclick = () => playItem(item);
+        card.innerHTML = `
+          <div class="relative aspect-video w-full overflow-hidden bg-gray-900">
+            <img src="${item.thumb}" alt="${item.title}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+            <span class="absolute top-2 left-2 text-[10px] font-bold uppercase px-2 py-0.5 rounded ${item.type === 'live' ? 'bg-red-600 text-white' : 'bg-blue-600 text-white'}">
+              ${item.type === 'live' ? 'EN VIVO' : 'VOD'}
+            </span>
+          </div>
+          <div class="p-3">
+            <h3 class="font-semibold text-sm text-white truncate">${item.title}</h3>
+            <p class="text-xs text-gray-400 truncate mt-0.5">${item.category}</p>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+      searchQuery = e.target.value.toLowerCase().trim();
+      renderCatalog();
+    });
+
+    // Inicialización
+    renderCatalog();
+    playItem(catalog[0]);
+  </script>
+</body>
+</html>
