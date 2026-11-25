@@ -1,1 +1,1321 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#750B12">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="manifest.webmanifest">
+  <title>OKRUTV</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: #000000;
+      color: #F8FAFC;
+      font-family: Arial, Helvetica, sans-serif;
+      overflow: hidden;
+    }
 
+    /* Pantalla grande siempre 100% */
+    #playerStage {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      width: 100vw;
+      height: 100dvh;
+      background: #000000;
+      z-index: 1;
+    }
+    #videoPlayer {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #000000;
+    }
+
+    /* Boton discreto en pantalla completa para abrir con puntero / tactil */
+    #hudTrigger {
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      z-index: 10;
+      background: rgba(22, 6, 6, 0.72);
+      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(234, 80, 105, 0.7);
+      color: #FFFFFF;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #hudTrigger span.accent { color: #EA5069; }
+
+    #unmuteBtn {
+      position: fixed;
+      top: 14px;
+      right: 14px;
+      z-index: 15;
+      background: rgba(148, 0, 22, 0.92);
+      border: 2px solid #FFFFFF;
+      color: #FFFFFF;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      display: none;
+    }
+
+    /* Banner inferior al cambiar de canal */
+    #osdBanner {
+      position: fixed;
+      left: 16px;
+      right: 16px;
+      bottom: 16px;
+      z-index: 12;
+      background: rgba(22, 6, 6, 0.78);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(234, 80, 105, 0.6);
+      border-left: 5px solid #FF2E4C;
+      border-radius: 10px;
+      padding: 12px 18px;
+      display: none;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      pointer-events: none;
+    }
+    #osdBanner.show { display: flex; }
+    #osdChannel { font-size: 20px; font-weight: bold; color: #FFFFFF; }
+    #osdSub { font-size: 13px; color: #CBD5E1; margin-top: 2px; }
+    #osdClock { font-size: 18px; color: #EA5069; font-weight: bold; flex-shrink: 0; }
+
+    /* Menu desplegable de vidrio transparente a la izquierda */
+    #glassMenu {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 100dvh;
+      width: 650px;
+      max-width: 96vw;
+      z-index: 30;
+      background: rgba(22, 6, 6, 0.68);
+      -webkit-backdrop-filter: blur(18px);
+      backdrop-filter: blur(18px);
+      border-right: 2px solid rgba(234, 80, 105, 0.55);
+      box-shadow: 12px 0 36px rgba(0, 0, 0, 0.72);
+      display: none;
+      flex-direction: row;
+      overflow: hidden;
+    }
+    #glassMenu.open { display: flex; }
+
+    /* Columna lateral de pestanas en orden: TV1, FAVORITOS, PELICULAS, SERIES, ACTUALIZAR */
+    .tabs-rail {
+      width: 158px;
+      flex-shrink: 0;
+      background: rgba(12, 3, 3, 0.65);
+      border-right: 1px solid rgba(234, 80, 105, 0.35);
+      display: flex;
+      flex-direction: column;
+      padding: 12px 8px;
+      gap: 8px;
+    }
+    .brand-box {
+      padding: 4px 8px 10px 8px;
+      border-bottom: 1px solid rgba(234, 80, 105, 0.3);
+      margin-bottom: 4px;
+    }
+    .brand-title { font-size: 22px; font-weight: bold; letter-spacing: 1px; color: #FFFFFF; }
+    .brand-title span { color: #EA5069; }
+    .brand-sub { font-size: 11px; color: #94A3B8; margin-top: 2px; }
+
+    .tab-btn {
+      width: 100%;
+      text-align: left;
+      background: rgba(40, 12, 13, 0.74);
+      color: #CBD5E1;
+      border: 2px solid transparent;
+      border-radius: 7px;
+      padding: 10px 10px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .tab-btn.active {
+      background: rgba(117, 11, 18, 0.9);
+      color: #FFFFFF;
+      border-color: #EA5069;
+    }
+    .tab-btn.focused {
+      background: #940016;
+      color: #FFFFFF;
+      border-color: #FFFFFF;
+    }
+    .rail-footer {
+      margin-top: auto;
+      padding: 8px 6px 2px 6px;
+      font-size: 11px;
+      line-height: 1.45;
+      color: #94A3B8;
+      border-top: 1px solid rgba(234, 80, 105, 0.25);
+    }
+
+    /* Contenido derecho del menu vidrio */
+    .menu-content {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+      overflow: hidden;
+    }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+      flex-shrink: 0;
+    }
+    .panel-title {
+      font-size: 18px;
+      font-weight: bold;
+      color: #FFFFFF;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .panel-count {
+      font-size: 12px;
+      color: #EA5069;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+    .close-menu-btn {
+      background: rgba(64, 16, 18, 0.85);
+      color: #FFFFFF;
+      border: 1px solid #EA5069;
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    /* Barra de desplazamiento color rojo bajo FAVORITOS, PELICULAS y SERIES */
+    #redPointerBar {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      background: rgba(60, 8, 12, 0.82);
+      border: 1px solid #FF2E4C;
+      border-radius: 8px;
+      padding: 6px 10px;
+      margin-bottom: 8px;
+      flex-shrink: 0;
+    }
+    #redPointerBar.visible { display: flex; }
+    .red-step-btn {
+      background: #940016;
+      color: #FFFFFF;
+      border: 1px solid #FF2E4C;
+      border-radius: 5px;
+      padding: 4px 10px;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    #redScrollRange {
+      flex: 1;
+      min-width: 0;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 10px;
+      background: #3A0A0D;
+      border: 1px solid #FF2E4C;
+      border-radius: 6px;
+      outline: none;
+      cursor: pointer;
+    }
+    #redScrollRange::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 24px;
+      height: 20px;
+      background: #FF2E4C;
+      border: 2px solid #FFFFFF;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #redScrollRange::-moz-range-thumb {
+      width: 24px;
+      height: 20px;
+      background: #FF2E4C;
+      border: 2px solid #FFFFFF;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    /* Listado unico de canales */
+    #channelListWrap {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    #channelList {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      list-style: none;
+      padding-right: 4px;
+    }
+    #channelList.red-scroll {
+      scrollbar-color: #FF2E4C #2A0608;
+      scrollbar-width: thick;
+    }
+    #channelList.red-scroll::-webkit-scrollbar { width: 12px; }
+    #channelList.red-scroll::-webkit-scrollbar-track {
+      background: rgba(45, 6, 10, 0.85);
+      border-radius: 6px;
+    }
+    #channelList.red-scroll::-webkit-scrollbar-thumb {
+      background: #FF2E4C;
+      border-radius: 6px;
+      border: 2px solid #2A0608;
+    }
+
+    .ch-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+      background: rgba(40, 11, 10, 0.72);
+      border: 2px solid transparent;
+      border-radius: 7px;
+      padding: 6px 8px;
+    }
+    .ch-row.playing {
+      background: rgba(92, 13, 16, 0.88);
+      border-left: 4px solid #FF2E4C;
+    }
+    .ch-row.focused {
+      background: rgba(117, 11, 18, 0.95);
+      border-color: #FFFFFF;
+    }
+    .ch-main {
+      flex: 1;
+      min-width: 0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 2px;
+    }
+    .ch-num {
+      font-size: 12px;
+      color: #94A3B8;
+      min-width: 30px;
+      flex-shrink: 0;
+      font-weight: bold;
+    }
+    .ch-name {
+      font-size: 15px;
+      color: #FFFFFF;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Estrellita blanca (dejar en favoritos) y estrellita roja (eliminar) */
+    .star-btn {
+      width: 34px;
+      height: 32px;
+      border-radius: 6px;
+      border: 2px solid rgba(255, 255, 255, 0.28);
+      background: rgba(20, 5, 5, 0.7);
+      font-size: 18px;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .star-white { color: #FFFFFF; }
+    .star-white.saved {
+      background: rgba(255, 255, 255, 0.25);
+      border-color: #FFFFFF;
+      text-shadow: 0 0 8px #FFFFFF;
+    }
+    .star-red {
+      color: #FF2E4C;
+      border-color: rgba(255, 46, 76, 0.55);
+    }
+    .star-btn.focused {
+      border-color: #FFC83D;
+      background: #940016;
+      transform: scale(1.06);
+    }
+
+    /* Panel de Actualizacion de Contenidos (Maximo 10 listas) */
+    #updatePanel {
+      display: none;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      flex-direction: column;
+      gap: 10px;
+      padding-right: 2px;
+    }
+    #updatePanel.visible { display: flex; }
+
+    .form-card {
+      background: rgba(34, 8, 8, 0.85);
+      border: 1px solid rgba(234, 80, 105, 0.4);
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .form-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .field {
+      flex: 1;
+      min-width: 0;
+      background: #120404;
+      color: #FFFFFF;
+      border: 1px solid #6A1916;
+      border-radius: 5px;
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+    .select-field {
+      background: #120404;
+      color: #FFFFFF;
+      border: 1px solid #6A1916;
+      border-radius: 5px;
+      padding: 8px;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+    .action-btn {
+      background: #750B12;
+      color: #FFFFFF;
+      border: 1px solid #EA5069;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .action-btn.sec {
+      background: #280C0D;
+      border-color: #6A1916;
+    }
+    .list-item-card {
+      background: rgba(40, 11, 10, 0.82);
+      border: 1px solid rgba(234, 80, 105, 0.32);
+      border-radius: 6px;
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .list-meta { min-width: 0; flex: 1; }
+    .list-name { font-size: 14px; font-weight: bold; color: #FFFFFF; }
+    .list-url {
+      font-size: 11px;
+      color: #94A3B8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .status-line {
+      font-size: 12px;
+      color: #FFC83D;
+      min-height: 16px;
+      margin-top: 4px;
+      flex-shrink: 0;
+    }
+
+    @media (max-width: 680px) {
+      .tabs-rail { width: 120px; padding: 8px 6px; }
+      .tab-btn { font-size: 12px; padding: 8px 6px; }
+      .brand-title { font-size: 18px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Reproductor siempre en pantalla grande -->
+  <div id="playerStage" onclick="onStageClick()">
+    <video id="videoPlayer" autoplay playsinline></video>
+  </div>
+
+  <button id="hudTrigger" onclick="openMenu()">
+    <span>☰</span>
+    <span>OKRU<span class="accent">TV</span> · Menú (OK)</span>
+  </button>
+
+  <button id="unmuteBtn" onclick="enableAudio()">🔇 Activar Sonido</button>
+
+  <div id="osdBanner">
+    <div>
+      <div id="osdChannel">OKRUTV</div>
+      <div id="osdSub">Cargando señal...</div>
+    </div>
+    <div id="osdClock">--:--</div>
+  </div>
+
+  <!-- Menu desplegable de vidrio transparente a la izquierda -->
+  <div id="glassMenu">
+    <div class="tabs-rail">
+      <div class="brand-box">
+        <div class="brand-title">OKRU<span>TV</span></div>
+        <div class="brand-sub">Cristal 1080p</div>
+      </div>
+      <button class="tab-btn active" data-tab="tv1" onclick="selectTab('tv1')">TV1</button>
+      <button class="tab-btn" data-tab="favoritos" onclick="selectTab('favoritos')">FAVORITOS</button>
+      <button class="tab-btn" data-tab="peliculas" onclick="selectTab('peliculas')">PELÍCULAS</button>
+      <button class="tab-btn" data-tab="series" onclick="selectTab('series')">SERIES</button>
+      <button class="tab-btn" data-tab="actualizar" onclick="selectTab('actualizar')">ACTUALIZAR</button>
+      <div class="rail-footer">
+        <div id="railClock">--:--</div>
+        <div>OK: Sintonizar</div>
+        <div>▲▼: 1 en 1</div>
+        <div>★ Blanca: Dejar</div>
+        <div>★ Roja: Eliminar</div>
+      </div>
+    </div>
+
+    <div class="menu-content">
+      <div class="panel-header">
+        <div class="panel-title" id="panelTitle">TV1</div>
+        <div class="panel-count" id="panelCount">0</div>
+        <button class="close-menu-btn" onclick="closeMenu()">Ocultar</button>
+      </div>
+
+      <!-- Barra de desplazamiento roja bajo FAVORITOS, PELICULAS y SERIES -->
+      <div id="redPointerBar">
+        <button class="red-step-btn" onclick="scrollListStep(-220)">▲</button>
+        <input type="range" id="redScrollRange" min="0" max="100" value="0" oninput="onRedSliderMove(this.value)">
+        <button class="red-step-btn" onclick="scrollListStep(220)">▼</button>
+      </div>
+
+      <div id="channelListWrap">
+        <ul id="channelList"></ul>
+      </div>
+
+      <!-- Pestana de actualizacion de contenidos (Maximo 10 listas) -->
+      <div id="updatePanel">
+        <div class="form-card">
+          <div style="font-size:13px;font-weight:bold;color:#EA5069;" id="listsCounter">Listas: 2 / 10 (Máximo 10)</div>
+          <div class="form-row">
+            <input type="text" class="field" id="newListName" placeholder="Nombre (ej. Astra / Mi Servidor)">
+            <select class="select-field" id="newListTarget">
+              <option value="tv1">TV1</option>
+              <option value="peliculas">PELÍCULAS</option>
+              <option value="series">SERIES</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <input type="text" class="field" id="newListUrl" placeholder="URL GitHub, M3U, M3U8, Astra o http://ip:puerto">
+          </div>
+          <div class="form-row">
+            <button class="action-btn" onclick="addUserList()">+ Agregar Lista</button>
+            <label class="action-btn sec" style="display:inline-flex;align-items:center;">
+              Archivo (.m3u/.m3u8/Astra)
+              <input type="file" id="localM3UFile" accept=".m3u,.m3u8,.txt,.json" style="display:none" onchange="loadLocalFile(this)">
+            </label>
+          </div>
+          <div class="form-row">
+            <button class="action-btn sec" onclick="refreshAllLists()">↻ Actualizar Todo</button>
+            <button class="action-btn sec" onclick="restoreDefaultLists()">↺ Restaurar TV1 GitHub</button>
+          </div>
+        </div>
+        <div id="savedListsContainer" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+
+      <div class="status-line" id="statusMsg"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
+  <script>
+    var MAX_LISTS = 10;
+    var TAB_ORDER = ["tv1", "favoritos", "peliculas", "series", "actualizar"];
+
+    var DEFAULT_LISTS = [
+      {
+        id: "def_patrioticotv",
+        name: "Patriotico TV (GitHub)",
+        target: "tv1",
+        url: "https://raw.githubusercontent.com/allendeernesto608-glitch/patrioticotv/refs/heads/main/588ctv.m3u"
+      },
+      {
+        id: "def_husarrock",
+        name: "Husar Rock TV (GitHub)",
+        target: "tv1",
+        url: "https://raw.githubusercontent.com/allendeernesto608-glitch/HUSAR-ROCK-/refs/heads/main/tvc157.m3u"
+      }
+    ];
+
+    var userLists = [];
+    var catalogs = { tv1: [], peliculas: [], series: [] };
+    var favorites = [];
+    var deletedUids = {};
+    var activeTab = "tv1";
+    var focusZone = "list";   // "tabs" | "list" | "starWhite" | "starRed"
+    var tabCursor = 0;
+    var listCursor = 0;
+    var menuOpen = false;
+    var currentChannel = null;
+    var hlsInstance = null;
+    var osdTimer = null;
+
+    function loadStorage() {
+      try {
+        var rawLists = localStorage.getItem("okrutv_lists_v3");
+        if (rawLists) userLists = JSON.parse(rawLists);
+      } catch (e) {}
+      if (!userLists || !userLists.length) {
+        userLists = DEFAULT_LISTS.slice(0);
+        saveLists();
+      }
+      try {
+        var rawFavs = localStorage.getItem("okrutv_favs_v3");
+        if (rawFavs) favorites = JSON.parse(rawFavs) || [];
+      } catch (e) { favorites = []; }
+      try {
+        var rawDel = localStorage.getItem("okrutv_del_v3");
+        if (rawDel) deletedUids = JSON.parse(rawDel) || {};
+      } catch (e) { deletedUids = {}; }
+      try {
+        var rawLast = localStorage.getItem("okrutv_last_v3");
+        if (rawLast) currentChannel = JSON.parse(rawLast);
+      } catch (e) { currentChannel = null; }
+    }
+
+    function saveLists() {
+      try { localStorage.setItem("okrutv_lists_v3", JSON.stringify(userLists)); } catch (e) {}
+    }
+    function saveFavs() {
+      try { localStorage.setItem("okrutv_favs_v3", JSON.stringify(favorites)); } catch (e) {}
+    }
+    function saveDeleted() {
+      try { localStorage.setItem("okrutv_del_v3", JSON.stringify(deletedUids)); } catch (e) {}
+    }
+    function saveLastChannel(ch) {
+      try { localStorage.setItem("okrutv_last_v3", JSON.stringify(ch)); } catch (e) {}
+    }
+
+    function setStatus(txt) {
+      document.getElementById("statusMsg").textContent = txt || "";
+    }
+
+    function updateClocks() {
+      var d = new Date();
+      var hh = ("0" + d.getHours()).slice(-2);
+      var mm = ("0" + d.getMinutes()).slice(-2);
+      var t = hh + ":" + mm;
+      document.getElementById("osdClock").textContent = t;
+      document.getElementById("railClock").textContent = t;
+    }
+    updateClocks();
+    setInterval(updateClocks, 15000);
+
+    function normalizeSourceUrl(raw) {
+      var u = (raw || "").trim();
+      if (!u) return "";
+      if (u.indexOf("https://github.com/") === 0 && u.indexOf("/blob/") > -1) {
+        u = u.replace("https://github.com/", "https://raw.githubusercontent.com/").replace("/blob/", "/");
+      }
+      return u;
+    }
+
+    /* Parsea M3U, M3U8, JSON de Astra y URLs directas de servidores/puertos manteniendo duplicados */
+    function parsePlaylistText(text, listObj) {
+      var out = [];
+      var clean = (text || "").replace(/\r/g, "").trim();
+      if (!clean) return out;
+
+      // Soporte para formato JSON de Astra / TVheadend
+      if (clean.charAt(0) === "{" || clean.charAt(0) === "[") {
+        try {
+          var json = JSON.parse(clean);
+          var arr = Array.isArray(json) ? json : (json.channels || json.streams || json.list || []);
+          for (var j = 0; j < arr.length; j++) {
+            var item = arr[j];
+            var streamUrl = item.url || item.stream || item.hls || item.http || "";
+            if (!streamUrl && item.output && Array.isArray(item.output) && item.output.length) {
+              streamUrl = item.output[0];
+            }
+            if (streamUrl) {
+              out.push({
+                uid: listObj.id + "_j_" + j,
+                name: item.name || item.title || ("Canal " + (j + 1)),
+                url: String(streamUrl).trim(),
+                sourceName: listObj.name
+              });
+            }
+          }
+          if (out.length) return out;
+        } catch (e) {}
+      }
+
+      // Si es un manifiesto HLS unico (.m3u8 directo)
+      if (clean.indexOf("#EXT-X-TARGETDURATION") > -1 || clean.indexOf("#EXT-X-STREAM-INF") > -1) {
+        if (listObj.url && listObj.url.indexOf("local:") !== 0) {
+          out.push({
+            uid: listObj.id + "_hls_0",
+            name: listObj.name || "Stream M3U8",
+            url: listObj.url,
+            sourceName: listObj.name
+          });
+          return out;
+        }
+      }
+
+      // Formato M3U / M3U8 / listas Astra M3U (sin eliminar repetidos ni separar por categorias)
+      var lines = clean.split("\n");
+      var curName = "";
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+        if (!line) continue;
+        if (line.indexOf("#EXTINF") === 0) {
+          var comma = line.indexOf(",");
+          curName = comma > -1 ? line.substring(comma + 1).trim() : "";
+        } else if (line.charAt(0) !== "#") {
+          if (
+            line.indexOf("http://") === 0 ||
+            line.indexOf("https://") === 0 ||
+            line.indexOf("rtsp://") === 0 ||
+            line.indexOf("udp://") === 0
+          ) {
+            out.push({
+              uid: listObj.id + "_" + out.length,
+              name: curName || ("Canal " + (out.length + 1)),
+              url: line,
+              sourceName: listObj.name
+            });
+            curName = "";
+          }
+        }
+      }
+      return out;
+    }
+
+    function fetchText(url, cb) {
+      var xhr = new XMLHttpRequest();
+      xhr.open("GET", url, true);
+      xhr.timeout = 20000;
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4) {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            cb(null, xhr.responseText);
+          } else {
+            cb("HTTP " + xhr.status);
+          }
+        }
+      };
+      xhr.onerror = function () { cb("Error de red/CORS"); };
+      xhr.ontimeout = function () { cb("Tiempo agotado"); };
+      xhr.send();
+    }
+
+    function loadSingleList(listObj, done) {
+      if (listObj.localText) {
+        var parsedLocal = parsePlaylistText(listObj.localText, listObj);
+        done(null, parsedLocal);
+        return;
+      }
+      var targetUrl = normalizeSourceUrl(listObj.url);
+      if (!targetUrl) { done("URL vacía", []); return; }
+
+      fetchText(targetUrl, function (err, text) {
+        if (!err && text) {
+          var items = parsePlaylistText(text, listObj);
+          if (!items.length && (targetUrl.indexOf(".m3u8") > -1 || targetUrl.indexOf("/play/") > -1)) {
+            items = [{ uid: listObj.id + "_direct", name: listObj.name || "Canal", url: targetUrl, sourceName: listObj.name }];
+          }
+          done(null, items);
+        } else {
+          // Si es enlace directo de video o Astra/puerto que bloquea XHR pero sirve en <video>
+          if (targetUrl.indexOf(".m3u8") > -1 || targetUrl.indexOf(".mp4") > -1 || targetUrl.indexOf(":8") > -1) {
+            done(null, [{ uid: listObj.id + "_direct", name: listObj.name || "Stream", url: targetUrl, sourceName: listObj.name }]);
+          } else {
+            done(err || "Error", []);
+          }
+        }
+      });
+    }
+
+    function refreshAllLists(autoPlayStartup) {
+      catalogs = { tv1: [], peliculas: [], series: [] };
+      var pending = userLists.length;
+      if (pending === 0) {
+        renderCurrentView();
+        return;
+      }
+      setStatus("Cargando " + pending + " listas...");
+
+      // Conserva el orden exacto de userLists sin mezclar ni deduplicar
+      var buckets = [];
+      userLists.forEach(function (lst, idx) {
+        loadSingleList(lst, function (err, items) {
+          buckets[idx] = { target: lst.target || "tv1", items: items || [], err: err };
+          pending--;
+          if (pending === 0) {
+            for (var k = 0; k < buckets.length; k++) {
+              var b = buckets[k];
+              if (!b) continue;
+              var t = catalogs[b.target] ? b.target : "tv1";
+              for (var m = 0; m < b.items.length; m++) {
+                catalogs[t].push(b.items[m]);
+              }
+            }
+            setStatus("TV1: " + catalogs.tv1.length + " · Películas: " + catalogs.peliculas.length + " · Series: " + catalogs.series.length);
+            renderCurrentView();
+            if (autoPlayStartup) startInitialPlayback();
+          }
+        });
+      });
+    }
+
+    function startInitialPlayback() {
+      if (currentChannel && currentChannel.url) {
+        playChannel(currentChannel, false);
+        return;
+      }
+      var tv1List = getVisibleListForTab("tv1");
+      if (tv1List.length > 0) {
+        playChannel(tv1List[0], false);
+      } else {
+        openMenu();
+      }
+    }
+
+    function getVisibleListForTab(tab) {
+      if (tab === "favoritos") return favorites;
+      var src = catalogs[tab] || [];
+      var out = [];
+      for (var i = 0; i < src.length; i++) {
+        if (!deletedUids[src[i].uid]) out.push(src[i]);
+      }
+      return out;
+    }
+
+    function isFavorite(ch) {
+      for (var i = 0; i < favorites.length; i++) {
+        if (favorites[i].uid === ch.uid || (favorites[i].url === ch.url && favorites[i].name === ch.name)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    /* Estrellita blanca: dejar / guardar en FAVORITOS */
+    function toggleSaveFavorite(ch) {
+      var foundIdx = -1;
+      for (var i = 0; i < favorites.length; i++) {
+        if (favorites[i].uid === ch.uid || (favorites[i].url === ch.url && favorites[i].name === ch.name)) {
+          foundIdx = i;
+          break;
+        }
+      }
+      if (foundIdx === -1) {
+        favorites.push({ uid: ch.uid, name: ch.name, url: ch.url, sourceName: ch.sourceName });
+        setStatus("★ Guardado en FAVORITOS: " + ch.name);
+      } else {
+        favorites.splice(foundIdx, 1);
+        setStatus("Quitado de FAVORITOS: " + ch.name);
+      }
+      saveFavs();
+      renderCurrentView();
+    }
+
+    /* Estrellita roja: eliminar canal del listado actual (incluido TV1) */
+    function deleteChannelEntry(ch) {
+      if (activeTab === "favoritos") {
+        var nextFav = [];
+        for (var i = 0; i < favorites.length; i++) {
+          if (favorites[i].uid !== ch.uid) nextFav.push(favorites[i]);
+        }
+        favorites = nextFav;
+        saveFavs();
+        setStatus("★ Eliminado de FAVORITOS: " + ch.name);
+      } else {
+        deletedUids[ch.uid] = true;
+        saveDeleted();
+        setStatus("★ Canal eliminado: " + ch.name);
+      }
+      var list = getVisibleListForTab(activeTab);
+      if (listCursor >= list.length) listCursor = Math.max(0, list.length - 1);
+      renderCurrentView();
+    }
+
+    function playChannel(ch, hideMenuAfter) {
+      if (!ch || !ch.url) return;
+      currentChannel = ch;
+      saveLastChannel(ch);
+
+      var video = document.getElementById("videoPlayer");
+      if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
+
+      var isMp4 = /\.(mp4|mkv|webm)(\?|$)/i.test(ch.url);
+      if (window.Hls && Hls.isSupported() && !isMp4) {
+        hlsInstance = new Hls({ enableWorker: true, lowLatencyMode: true });
+        hlsInstance.loadSource(ch.url);
+        hlsInstance.attachMedia(video);
+        hlsInstance.on(Hls.Events.MANIFEST_PARSED, function () {
+          attemptVideoPlay(video);
+        });
+        hlsInstance.on(Hls.Events.ERROR, function (ev, data) {
+          if (data && data.fatal) {
+            video.src = ch.url;
+            attemptVideoPlay(video);
+          }
+        });
+      } else {
+        video.src = ch.url;
+        attemptVideoPlay(video);
+      }
+
+      showOsd(ch.name, ch.sourceName || activeTab.toUpperCase());
+      if (hideMenuAfter) closeMenu();
+      else renderCurrentView();
+    }
+
+    function attemptVideoPlay(video) {
+      var p = video.play();
+      if (p && typeof p.catch === "function") {
+        p.catch(function () {
+          video.muted = true;
+          document.getElementById("unmuteBtn").style.display = "block";
+          video.play().catch(function () {});
+        });
+      }
+    }
+
+    function enableAudio() {
+      var video = document.getElementById("videoPlayer");
+      video.muted = false;
+      video.volume = 1.0;
+      document.getElementById("unmuteBtn").style.display = "none";
+    }
+
+    function showOsd(title, sub) {
+      document.getElementById("osdChannel").textContent = title;
+      document.getElementById("osdSub").textContent = sub;
+      var banner = document.getElementById("osdBanner");
+      banner.className = "show";
+      if (osdTimer) clearTimeout(osdTimer);
+      osdTimer = setTimeout(function () {
+        banner.className = "";
+      }, 4000);
+    }
+
+    function openMenu() {
+      menuOpen = true;
+      document.getElementById("glassMenu").className = "open";
+      document.getElementById("hudTrigger").style.display = "none";
+      renderCurrentView();
+    }
+
+    function closeMenu() {
+      menuOpen = false;
+      document.getElementById("glassMenu").className = "";
+      document.getElementById("hudTrigger").style.display = "flex";
+    }
+
+    function onStageClick() {
+      if (menuOpen) closeMenu();
+      else openMenu();
+    }
+
+    function selectTab(tab) {
+      activeTab = tab;
+      tabCursor = TAB_ORDER.indexOf(tab);
+      if (tabCursor < 0) tabCursor = 0;
+      listCursor = 0;
+      if (tab === "actualizar") {
+        focusZone = "tabs";
+      } else {
+        focusZone = "list";
+      }
+      renderCurrentView();
+    }
+
+    function renderCurrentView() {
+      var tabBtns = document.querySelectorAll(".tab-btn");
+      for (var t = 0; t < tabBtns.length; t++) {
+        var tb = tabBtns[t];
+        var isAct = tb.getAttribute("data-tab") === activeTab;
+        var isFoc = focusZone === "tabs" && t === tabCursor;
+        tb.className = "tab-btn" + (isAct ? " active" : "") + (isFoc ? " focused" : "");
+      }
+
+      var titles = {
+        tv1: "TV1 (Listado Único)",
+        favoritos: "FAVORITOS",
+        peliculas: "PELÍCULAS",
+        series: "SERIES",
+        actualizar: "ACTUALIZACIÓN DE CONTENIDOS"
+      };
+      document.getElementById("panelTitle").textContent = titles[activeTab] || activeTab.toUpperCase();
+
+      var isUpdate = (activeTab === "actualizar");
+      document.getElementById("channelListWrap").style.display = isUpdate ? "none" : "flex";
+      document.getElementById("updatePanel").className = isUpdate ? "visible" : "";
+
+      // Barra de desplazamiento color rojo solo bajo FAVORITOS, PELICULAS y SERIES
+      var showRedBar = (activeTab === "favoritos" || activeTab === "peliculas" || activeTab === "series");
+      document.getElementById("redPointerBar").className = showRedBar ? "visible" : "";
+      var ul = document.getElementById("channelList");
+      ul.className = showRedBar ? "red-scroll" : "";
+
+      if (isUpdate) {
+        document.getElementById("panelCount").textContent = userLists.length + " / " + MAX_LISTS;
+        renderSavedLists();
+        return;
+      }
+
+      var items = getVisibleListForTab(activeTab);
+      document.getElementById("panelCount").textContent = items.length + " canales";
+      if (listCursor >= items.length) listCursor = Math.max(0, items.length - 1);
+
+      ul.innerHTML = "";
+      if (!items.length) {
+        var emptyLi = document.createElement("li");
+        emptyLi.style.padding = "18px 10px";
+        emptyLi.style.color = "#94A3B8";
+        emptyLi.style.fontSize = "14px";
+        emptyLi.textContent = activeTab === "favoritos"
+          ? "No hay canales en FAVORITOS. Pulsa la estrellita blanca ★ de cualquier canal para guardarlo."
+          : "Sin canales cargados en esta pestaña. Agrega una lista en ACTUALIZAR.";
+        ul.appendChild(emptyLi);
+        syncRedSlider();
+        return;
+      }
+
+      for (var i = 0; i < items.length; i++) {
+        (function (idx) {
+          var ch = items[idx];
+          var isRowFocused = (idx === listCursor) && (focusZone === "list" || focusZone === "starWhite" || focusZone === "starRed");
+          var isPlaying = currentChannel && currentChannel.url === ch.url && currentChannel.name === ch.name;
+
+          var li = document.createElement("li");
+          li.className = "ch-row" + (isPlaying ? " playing" : "") + (focusZone === "list" && idx === listCursor ? " focused" : "");
+
+          var mainDiv = document.createElement("div");
+          mainDiv.className = "ch-main";
+          mainDiv.onclick = function () {
+            listCursor = idx;
+            focusZone = "list";
+            playChannel(ch, true);
+          };
+
+          var numSpan = document.createElement("span");
+          numSpan.className = "ch-num";
+          numSpan.textContent = (idx + 1) + ".";
+
+          var nameSpan = document.createElement("span");
+          nameSpan.className = "ch-name";
+          nameSpan.textContent = ch.name;
+
+          mainDiv.appendChild(numSpan);
+          mainDiv.appendChild(nameSpan);
+
+          // Estrellita blanca: dejar / guardar en favoritos
+          var btnWhite = document.createElement("button");
+          btnWhite.className = "star-btn star-white" +
+            (isFavorite(ch) ? " saved" : "") +
+            (isRowFocused && focusZone === "starWhite" ? " focused" : "");
+          btnWhite.title = "Dejar / Guardar en Favoritos";
+          btnWhite.textContent = "★";
+          btnWhite.onclick = function (ev) {
+            ev.stopPropagation();
+            listCursor = idx;
+            toggleSaveFavorite(ch);
+          };
+
+          // Estrellita roja: eliminar canal
+          var btnRed = document.createElement("button");
+          btnRed.className = "star-btn star-red" +
+            (isRowFocused && focusZone === "starRed" ? " focused" : "");
+          btnRed.title = "Eliminar canal";
+          btnRed.textContent = "★";
+          btnRed.onclick = function (ev) {
+            ev.stopPropagation();
+            listCursor = idx;
+            deleteChannelEntry(ch);
+          };
+
+          li.appendChild(mainDiv);
+          li.appendChild(btnWhite);
+          li.appendChild(btnRed);
+          ul.appendChild(li);
+
+          if (idx === listCursor && isRowFocused && li.scrollIntoView) {
+            li.scrollIntoView({ block: "nearest" });
+          }
+        })(i);
+      }
+      syncRedSlider();
+    }
+
+    function syncRedSlider() {
+      var ul = document.getElementById("channelList");
+      var slider = document.getElementById("redScrollRange");
+      var maxScroll = ul.scrollHeight - ul.clientHeight;
+      if (maxScroll <= 0) {
+        slider.value = 0;
+        return;
+      }
+      slider.value = Math.round((ul.scrollTop / maxScroll) * 100);
+    }
+
+    function onRedSliderMove(val) {
+      var ul = document.getElementById("channelList");
+      var maxScroll = ul.scrollHeight - ul.clientHeight;
+      if (maxScroll > 0) {
+        ul.scrollTop = Math.round((Number(val) / 100) * maxScroll);
+      }
+    }
+
+    function scrollListStep(delta) {
+      var ul = document.getElementById("channelList");
+      ul.scrollTop += delta;
+      syncRedSlider();
+    }
+
+    document.getElementById("channelList").addEventListener("scroll", syncRedSlider);
+
+    /* Gestion de listas (Maximo 10 listas) */
+    function renderSavedLists() {
+      document.getElementById("listsCounter").textContent = "Listas ingresadas: " + userLists.length + " / " + MAX_LISTS + " (Máximo 10)";
+      var box = document.getElementById("savedListsContainer");
+      box.innerHTML = "";
+      for (var i = 0; i < userLists.length; i++) {
+        (function (idx) {
+          var l = userLists[idx];
+          var card = document.createElement("div");
+          card.className = "list-item-card";
+
+          var meta = document.createElement("div");
+          meta.className = "list-meta";
+          var nm = document.createElement("div");
+          nm.className = "list-name";
+          nm.textContent = (idx + 1) + ". " + l.name + " [" + (l.target || "tv1").toUpperCase() + "]";
+          var ur = document.createElement("div");
+          ur.className = "list-url";
+          ur.textContent = l.url;
+          meta.appendChild(nm);
+          meta.appendChild(ur);
+
+          var delBtn = document.createElement("button");
+          delBtn.className = "action-btn sec";
+          delBtn.textContent = "Quitar";
+          delBtn.onclick = function () {
+            userLists.splice(idx, 1);
+            saveLists();
+            refreshAllLists(false);
+          };
+
+          card.appendChild(meta);
+          card.appendChild(delBtn);
+          box.appendChild(card);
+        })(i);
+      }
+    }
+
+    function addUserList() {
+      if (userLists.length >= MAX_LISTS) {
+        setStatus("Límite alcanzado: máximo " + MAX_LISTS + " listas. Quita una antes de agregar otra.");
+        return;
+      }
+      var nameEl = document.getElementById("newListName");
+      var urlEl = document.getElementById("newListUrl");
+      var targetEl = document.getElementById("newListTarget");
+      var url = normalizeSourceUrl(urlEl.value);
+      if (!url) {
+        setStatus("Ingresa la URL de GitHub, M3U, M3U8, Astra o IP:Puerto.");
+        return;
+      }
+      var name = nameEl.value.trim() || ("Lista " + (userLists.length + 1));
+      userLists.push({
+        id: "usr_" + Date.now(),
+        name: name,
+        target: targetEl.value || "tv1",
+        url: url
+      });
+      saveLists();
+      nameEl.value = "";
+      urlEl.value = "";
+      refreshAllLists(false);
+    }
+
+    function loadLocalFile(input) {
+      if (userLists.length >= MAX_LISTS) {
+        setStatus("Límite alcanzado: máximo " + MAX_LISTS + " listas.");
+        return;
+      }
+      var file = input.files && input.files[0];
+      if (!file) return;
+      var target = document.getElementById("newListTarget").value || "tv1";
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        var content = e.target.result || "";
+        userLists.push({
+          id: "loc_" + Date.now(),
+          name: file.name,
+          target: target,
+          url: "local:" + file.name,
+          localText: content
+        });
+        saveLists();
+        refreshAllLists(false);
+      };
+      reader.readAsText(file);
+      input.value = "";
+    }
+
+    function restoreDefaultLists() {
+      userLists = DEFAULT_LISTS.slice(0);
+      deletedUids = {};
+      saveLists();
+      saveDeleted();
+      refreshAllLists(false);
+    }
+
+    /* Control remoto: navegacion completa y avance 1 en 1 */
+    document.addEventListener("keydown", function (e) {
+      var tag = document.activeElement ? document.activeElement.tagName : "";
+      if (tag === "INPUT" || tag === "SELECT") {
+        if ((e.keyCode || e.which) === 27 || (e.keyCode || e.which) === 461 || (e.keyCode || e.which) === 10009) {
+          document.activeElement.blur();
+          e.preventDefault();
+        }
+        return;
+      }
+
+      var code = e.keyCode || e.which;
+      var isUp = (code === 38 || code === 427);
+      var isDown = (code === 40 || code === 428);
+      var isLeft = (code === 37);
+      var isRight = (code === 39);
+      var isOk = (code === 13);
+      var isBack = (code === 8 || code === 27 || code === 461 || code === 10009);
+
+      // Menu cerrado: OK abre el menu de vidrio; Arriba/Abajo cambian canal 1 en 1
+      if (!menuOpen) {
+        if (isOk) {
+          enableAudio();
+          openMenu();
+          e.preventDefault();
+        } else if (isUp || isDown) {
+          var activeList = getVisibleListForTab(activeTab === "actualizar" ? "tv1" : activeTab);
+          if (activeList.length > 0) {
+            listCursor = isDown
+              ? (listCursor + 1) % activeList.length
+              : (listCursor - 1 + activeList.length) % activeList.length;
+            playChannel(activeList[listCursor], false);
+          }
+          e.preventDefault();
+        }
+        return;
+      }
+
+      // Menu abierto
+      if (isBack) {
+        closeMenu();
+        e.preventDefault();
+        return;
+      }
+
+      if (focusZone === "tabs") {
+        if (isUp && tabCursor > 0) {
+          tabCursor--;
+          selectTab(TAB_ORDER[tabCursor]);
+          focusZone = "tabs";
+          renderCurrentView();
+        } else if (isDown && tabCursor < TAB_ORDER.length - 1) {
+          tabCursor++;
+          selectTab(TAB_ORDER[tabCursor]);
+          focusZone = "tabs";
+          renderCurrentView();
+        } else if (isRight || isOk) {
+          selectTab(TAB_ORDER[tabCursor]);
+          if (activeTab !== "actualizar") focusZone = "list";
+          renderCurrentView();
+        }
+        e.preventDefault();
+        return;
+      }
+
+      var items = getVisibleListForTab(activeTab);
+
+      if (isUp) {
+        if (listCursor > 0) {
+          listCursor--; // Avance 1 en 1
+          renderCurrentView();
+        }
+        e.preventDefault();
+      } else if (isDown) {
+        if (listCursor < items.length - 1) {
+          listCursor++; // Avance 1 en 1
+          renderCurrentView();
+        }
+        e.preventDefault();
+      } else if (isLeft) {
+        if (focusZone === "starRed") focusZone = "starWhite";
+        else if (focusZone === "starWhite") focusZone = "list";
+        else focusZone = "tabs";
+        renderCurrentView();
+        e.preventDefault();
+      } else if (isRight) {
+        if (focusZone === "list" && items.length > 0) focusZone = "starWhite";
+        else if (focusZone === "starWhite") focusZone = "starRed";
+        renderCurrentView();
+        e.preventDefault();
+      } else if (isOk) {
+        enableAudio();
+        if (items[listCursor]) {
+          if (focusZone === "list") {
+            playChannel(items[listCursor], true); // Sintoniza y oculta el menu
+          } else if (focusZone === "starWhite") {
+            toggleSaveFavorite(items[listCursor]);
+          } else if (focusZone === "starRed") {
+            deleteChannelEntry(items[listCursor]);
+          }
+        }
+        e.preventDefault();
+      }
+    });
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./sw.js").catch(function () {});
+    }
+
+    loadStorage();
+    refreshAllLists(true);
+  </script>
+</body>
+</html>
