@@ -1,1 +1,376 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OKRUTV — Web TV</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #160606;
+      color: #F8FAFC;
+      font-family: Arial, Helvetica, sans-serif;
+      overflow: hidden;
+      height: 100vh;
+    }
+    .topbar {
+      height: 64px;
+      background: #1C0707;
+      border-bottom: 2px solid #750B12;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+    }
+    .brand {
+      font-size: 26px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      color: #FFFFFF;
+    }
+    .brand span { color: #EA5069; }
+    .tabs { display: flex; gap: 10px; }
+    .btn {
+      background: #280C0D;
+      color: #E2E8F0;
+      border: 2px solid #5E1714;
+      border-radius: 6px;
+      padding: 8px 16px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .btn.active { background: #750B12; color: #FFFFFF; border-color: #EA5069; }
+    .btn:focus, .btn.focused {
+      outline: none;
+      background: #940016;
+      border-color: #FFFFFF;
+      color: #FFFFFF;
+    }
+    .layout {
+      display: flex;
+      height: calc(100vh - 64px);
+      padding: 16px 24px;
+      gap: 20px;
+    }
+    .sidebar {
+      width: 36%;
+      background: #220808;
+      border: 1px solid #5E1714;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      padding: 14px;
+    }
+    .loader-box {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .loader-box input[type="text"] {
+      flex: 1;
+      background: #120404;
+      color: #FFFFFF;
+      border: 1px solid #6A1916;
+      border-radius: 4px;
+      padding: 8px 10px;
+      font-size: 14px;
+    }
+    .channel-list {
+      flex: 1;
+      overflow-y: auto;
+      list-style: none;
+    }
+    .channel-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      margin-bottom: 6px;
+      background: #2E0B0A;
+      border: 2px solid transparent;
+      border-radius: 6px;
+      font-size: 17px;
+      cursor: pointer;
+    }
+    .channel-item.playing { border-left: 5px solid #FF2E4C; background: #4E0B0A; }
+    .channel-item.focused {
+      background: #750B12;
+      border-color: #FFFFFF;
+    }
+    .fav-badge { color: #FFC83D; font-weight: bold; margin-left: 8px; }
+    .stage {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .video-wrap {
+      flex: 1;
+      background: #000000;
+      border: 2px solid #5E1714;
+      border-radius: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      background: #000;
+    }
+    .info-bar {
+      height: 92px;
+      background: #280C0D;
+      border: 1px solid #6A1916;
+      border-radius: 8px;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .ch-title { font-size: 24px; font-weight: bold; }
+    .ch-sub { font-size: 14px; color: #94A3B8; margin-top: 4px; }
+    .actions { display: flex; gap: 10px; }
+    .status-msg { font-size: 13px; color: #FFC83D; margin-bottom: 8px; min-height: 18px; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">OKRU<span>TV</span></div>
+    <div class="tabs">
+      <button class="btn active" id="tabAll" onclick="setFilter('all')">Canales</button>
+      <button class="btn" id="tabFav" onclick="setFilter('fav')">Favoritos</button>
+      <button class="btn" id="btnFull" onclick="toggleFullscreen()">Pantalla Completa</button>
+    </div>
+    <div id="clock" style="color:#94A3B8;font-size:18px;">--:--</div>
+  </div>
 
+  <div class="layout">
+    <div class="sidebar">
+      <div class="loader-box">
+        <input type="text" id="m3uUrl" placeholder="URL lista .m3u / .m3u8">
+        <button class="btn" onclick="loadFromUrl()">Cargar</button>
+        <label class="btn" style="display:inline-flex;align-items:center;">
+          Archivo
+          <input type="file" id="m3uFile" accept=".m3u,.m3u8,.txt" style="display:none" onchange="loadFromFile(this)">
+        </label>
+      </div>
+      <div class="status-msg" id="statusMsg">Carga una lista M3U/M3U8 o selecciona un archivo local.</div>
+      <ul class="channel-list" id="channelList"></ul>
+    </div>
+
+    <div class="stage">
+      <div class="video-wrap">
+        <video id="videoPlayer" controls autoplay playsinline></video>
+      </div>
+      <div class="info-bar">
+        <div>
+          <div class="ch-title" id="nowTitle">OKRUTV listo</div>
+          <div class="ch-sub" id="nowGroup">Usa las flechas del control remoto y OK para reproducir</div>
+        </div>
+        <div class="actions">
+          <button class="btn" onclick="toggleCurrentFav()">Destacar ★</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- hls.js opcional si hay internet; en TV Hisense modernas suele funcionar tambien nativo -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
+  <script>
+    var allChannels = [];
+    var visibleChannels = [];
+    var favorites = {};
+    var currentFilter = "all";
+    var focusIdx = 0;
+    var playingUrl = "";
+    var hlsInstance = null;
+
+    try {
+      favorites = JSON.parse(localStorage.getItem("okrutv_favs") || "{}");
+    } catch (e) { favorites = {}; }
+
+    function updateClock() {
+      var d = new Date();
+      var hh = ("0" + d.getHours()).slice(-2);
+      var mm = ("0" + d.getMinutes()).slice(-2);
+      document.getElementById("clock").textContent = hh + ":" + mm;
+    }
+    updateClock();
+    setInterval(updateClock, 15000);
+
+    function setStatus(txt) {
+      document.getElementById("statusMsg").textContent = txt;
+    }
+
+    function parseM3U(text) {
+      var lines = text.replace(/\r/g, "").split("\n");
+      var out = [];
+      var curName = "";
+      var curGroup = "General";
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+        if (line.indexOf("#EXTINF") === 0) {
+          var comma = line.indexOf(",");
+          curName = comma > -1 ? line.substring(comma + 1).trim() : "Canal";
+          var grpMatch = line.match(/group-title="([^"]*)"/i);
+          curGroup = grpMatch ? grpMatch[1] : "General";
+        } else if (line.indexOf("http://") === 0 || line.indexOf("https://") === 0) {
+          out.push({
+            name: curName || ("Canal " + (out.length + 1)),
+            group: curGroup,
+            url: line
+          });
+          curName = "";
+          curGroup = "General";
+        }
+      }
+      return out;
+    }
+
+    function loadFromUrl() {
+      var url = document.getElementById("m3uUrl").value.trim();
+      if (!url) { setStatus("Ingresa una URL válida."); return; }
+      if (url.indexOf(".m3u8") > -1 && url.indexOf("get.php") === -1) {
+        allChannels = [{ name: "Stream Directo", group: "En Vivo", url: url }];
+        setFilter("all");
+        playChannel(0);
+        return;
+      }
+      setStatus("Descargando lista...");
+      var xhr = new XMLHttpRequest();
+      xhr.open("GET", url, true);
+      xhr.onreadystatechange = function () {
+        if (xhr.readyState === 4) {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            allChannels = parseM3U(xhr.responseText);
+            focusIdx = 0;
+            setStatus("Cargados " + allChannels.length + " canales.");
+            setFilter("all");
+          } else {
+            setStatus("Error HTTP " + xhr.status + " (revisa CORS o usa archivo local).");
+          }
+        }
+      };
+      xhr.onerror = function () {
+        setStatus("Bloqueado por CORS/red en el navegador. Usa 'Archivo' local.");
+      };
+      xhr.send();
+    }
+
+    function loadFromFile(input) {
+      var file = input.files && input.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        allChannels = parseM3U(e.target.result || "");
+        focusIdx = 0;
+        setStatus("Archivo cargado: " + allChannels.length + " canales.");
+        setFilter("all");
+      };
+      reader.readAsText(file);
+    }
+
+    function setFilter(mode) {
+      currentFilter = mode;
+      document.getElementById("tabAll").className = mode === "all" ? "btn active" : "btn";
+      document.getElementById("tabFav").className = mode === "fav" ? "btn active" : "btn";
+      visibleChannels = [];
+      for (var i = 0; i < allChannels.length; i++) {
+        if (mode === "all" || favorites[allChannels[i].url]) {
+          visibleChannels.push(allChannels[i]);
+        }
+      }
+      if (focusIdx >= visibleChannels.length) focusIdx = 0;
+      renderList();
+    }
+
+    function renderList() {
+      var ul = document.getElementById("channelList");
+      ul.innerHTML = "";
+      for (var i = 0; i < visibleChannels.length; i++) {
+        (function (idx) {
+          var ch = visibleChannels[idx];
+          var li = document.createElement("li");
+          li.className = "channel-item";
+          if (ch.url === playingUrl) li.className += " playing";
+          if (idx === focusIdx) li.className += " focused";
+          var nameSpan = document.createElement("span");
+          nameSpan.textContent = (idx + 1) + ". " + ch.name;
+          li.appendChild(nameSpan);
+          if (favorites[ch.url]) {
+            var star = document.createElement("span");
+            star.className = "fav-badge";
+            star.textContent = "★";
+            li.appendChild(star);
+          }
+          li.onclick = function () { focusIdx = idx; playChannel(idx); renderList(); };
+          ul.appendChild(li);
+          if (idx === focusIdx && li.scrollIntoView) {
+            li.scrollIntoView({ block: "nearest" });
+          }
+        })(i);
+      }
+    }
+
+    function playChannel(idx) {
+      if (idx < 0 || idx >= visibleChannels.length) return;
+      var ch = visibleChannels[idx];
+      playingUrl = ch.url;
+      document.getElementById("nowTitle").textContent = ch.name;
+      document.getElementById("nowGroup").textContent = ch.group;
+      var video = document.getElementById("videoPlayer");
+      if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
+      if (window.Hls && Hls.isSupported() && ch.url.indexOf(".mp4") === -1) {
+        hlsInstance = new Hls();
+        hlsInstance.loadSource(ch.url);
+        hlsInstance.attachMedia(video);
+        hlsInstance.on(Hls.Events.MANIFEST_PARSED, function () { video.play(); });
+      } else {
+        video.src = ch.url;
+        video.play();
+      }
+      renderList();
+    }
+
+    function toggleCurrentFav() {
+      if (!visibleChannels[focusIdx]) return;
+      var ch = visibleChannels[focusIdx];
+      if (favorites[ch.url]) delete favorites[ch.url];
+      else favorites[ch.url] = true;
+      try { localStorage.setItem("okrutv_favs", JSON.stringify(favorites)); } catch (e) {}
+      setFilter(currentFilter);
+    }
+
+    function toggleFullscreen() {
+      var v = document.getElementById("videoPlayer");
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else if (v.requestFullscreen) {
+        v.requestFullscreen();
+      } else if (v.webkitRequestFullscreen) {
+        v.webkitRequestFullscreen();
+      }
+    }
+
+    // Navegacion con control remoto TV Hisense
+    document.addEventListener("keydown", function (e) {
+      if (document.activeElement && document.activeElement.tagName === "INPUT") return;
+      var code = e.keyCode || e.which;
+      if (code === 38) { // Arriba
+        if (focusIdx > 0) { focusIdx--; renderList(); }
+        e.preventDefault();
+      } else if (code === 40) { // Abajo
+        if (focusIdx < visibleChannels.length - 1) { focusIdx++; renderList(); }
+        e.preventDefault();
+      } else if (code === 13) { // OK / Enter
+        playChannel(focusIdx);
+        e.preventDefault();
+      } else if (code === 39) { // Derecha -> Pantalla completa
+        toggleFullscreen();
+      } else if (code === 8 || code === 27 || code === 461 || code === 10009) { // Atras
+        if (document.fullscreenElement) document.exitFullscreen();
+      }
+    });
+  </script>
+</body>
+</html>
